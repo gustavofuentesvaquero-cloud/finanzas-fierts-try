@@ -32,7 +32,17 @@ import yfinance as yf
 DB_DIR = Path(__file__).resolve().parent / "data"
 DB_PATH = DB_DIR / "backtesting.db"
 
-DEFAULT_TICKERS = ["AAPL", "MSFT", "GOOGL"]
+# Lista oficial de índices seleccionados (EE.UU. y Europa)
+# Excluido Euro Stoxx 50 (^STOXX50E); Incluidos DAX 40 (^GDAXI) y CAC 40 (^FCHI)
+DEFAULT_INDICES = [
+    "^GSPC",   # S&P 500 (EE.UU.)
+    "^IXIC",   # Nasdaq Composite (EE.UU.)
+    "^GDAXI",  # DAX 40 (Alemania)
+    "^FCHI",   # CAC 40 (Francia)
+    "^IBEX",   # IBEX 35 (España)
+]
+
+DEFAULT_TICKERS = DEFAULT_INDICES
 DEFAULT_YEARS = 5
 
 LOG_FORMAT = "%(asctime)s | %(levelname)-8s | %(message)s"
@@ -557,6 +567,11 @@ def main():
         help=f"Lista de tickers a cargar (default: {', '.join(DEFAULT_TICKERS)})",
     )
     parser.add_argument(
+        "--indices",
+        action="store_true",
+        help="Carga la lista oficial de índices (^GSPC, ^IXIC, ^GDAXI, ^FCHI, ^IBEX)",
+    )
+    parser.add_argument(
         "--years",
         type=int,
         default=DEFAULT_YEARS,
@@ -574,7 +589,10 @@ def main():
     effective_db_path = Path(args.db_path) if args.db_path else DB_PATH
     effective_db_dir = effective_db_path.parent
 
-    tickers = [t.upper() for t in args.tickers]
+    if args.indices:
+        tickers = DEFAULT_INDICES
+    else:
+        tickers = [t.upper() for t in args.tickers]
     years = args.years
 
     print("\n" + "=" * 70)

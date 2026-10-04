@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState, useTransition } from "react";
-import { ArrowUpRight, ArrowDownRight, RefreshCw, BarChart2, ShieldCheck, Activity } from "lucide-react";
+import { ArrowUpRight, ArrowDownRight, RefreshCw, BarChart2, ShieldCheck, Activity, Compass, Zap, Flame, Maximize2 } from "lucide-react";
 import { StrategyChart } from "@/components/StrategyChart";
 
 interface Asset {
@@ -43,24 +43,32 @@ interface Trade {
   exit_reason?: string | null;
 }
 
-interface Fundamental {
-  asset_id: number;
+interface ChartistAnalysis {
   ticker: string;
-  period_end: string;
-  period_type: string;
-  ebitda: number | null;
-  ebitda_growth: number | null;
-  wacc: number | null;
-  roe: number | null;
-  debt_to_equity: number | null;
+  name: string;
+  date: string;
+  trend: string;
+  swingStructure: string;
+  turnAggression: string;
+  relativeRange: number;
+  isVolatilityClimax: boolean;
+  patterns: Array<{
+    type: string;
+    name: string;
+    startDate: string;
+    endDate: string;
+    status: string;
+    resistance?: number;
+  }>;
+  totalSwings: number;
 }
 
 export default function Dashboard() {
   const [assets, setAssets] = useState<Asset[]>([]);
   const [runs, setRuns] = useState<BacktestRun[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
-  const [fundamentals, setFundamentals] = useState<Fundamental[]>([]);
-  const [selectedTicker, setSelectedTicker] = useState<string>("AAPL");
+  const [chartist, setChartist] = useState<ChartistAnalysis | null>(null);
+  const [selectedTicker, setSelectedTicker] = useState<string>("^GSPC");
   const [prices, setPrices] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isPending, startTransition] = useTransition();
@@ -71,13 +79,16 @@ export default function Dashboard() {
       const res = await fetch("/api/backtest");
       const json = await res.json();
       if (json.success) {
-        setAssets(json.assets || []);
+        const loadedAssets: Asset[] = json.assets || [];
+        setAssets(loadedAssets);
         setRuns(json.runs || []);
         setTrades(json.trades || []);
-        setFundamentals(json.fundamentals || []);
+        if (loadedAssets.length > 0 && !loadedAssets.some((a) => a.ticker === selectedTicker)) {
+          setSelectedTicker(loadedAssets[0].ticker);
+        }
       }
     } catch (err) {
-      console.error("Error al cargar datos del backtest:", err);
+      console.error("Error al cargar datos:", err);
     } finally {
       setLoading(false);
     }
@@ -85,13 +96,25 @@ export default function Dashboard() {
 
   const loadPrices = async (ticker: string) => {
     try {
-      const res = await fetch(`/api/prices?ticker=${ticker}`);
+      const res = await fetch(`/api/prices?ticker=${encodeURIComponent(ticker)}`);
       const json = await res.json();
       if (json.success) {
         setPrices(json.prices || []);
       }
     } catch (err) {
       console.error("Error al cargar precios:", err);
+    }
+  };
+
+  const loadChartist = async (ticker: string) => {
+    try {
+      const res = await fetch(`/api/chartist?ticker=${encodeURIComponent(ticker)}`);
+      const json = await res.json();
+      if (json.success) {
+        setChartist(json.analysis || null);
+      }
+    } catch (err) {
+      console.error("Error al cargar analisis chartista:", err);
     }
   };
 
@@ -102,13 +125,12 @@ export default function Dashboard() {
   useEffect(() => {
     if (selectedTicker) {
       loadPrices(selectedTicker);
+      loadChartist(selectedTicker);
     }
   }, [selectedTicker]);
 
-  // Datos filtrados para el ticker seleccionado
   const currentRun = runs.find((r) => r.ticker === selectedTicker);
   const currentTrades = trades.filter((t) => t.run_id === currentRun?.id);
-  const currentFundamentals = fundamentals.filter((f) => f.ticker === selectedTicker).slice(0, 4);
 
   return (
     <div className="min-h-screen bg-white text-zinc-900">
@@ -121,10 +143,10 @@ export default function Dashboard() {
             </div>
             <div>
               <h1 className="text-sm font-semibold tracking-tight text-zinc-900">
-                Motor Cuantitativo Híbrido
+                Motor Cuantitativo Chartista
               </h1>
               <p className="text-[11px] text-zinc-400 font-mono">
-                Cruce SMA + Validación Fundamental (EBITDA / D&E)
+                Índices EE.UU. &amp; Europa • 4 Prioridades Operativas
               </p>
             </div>
           </div>
@@ -134,7 +156,10 @@ export default function Dashboard() {
               onClick={() => {
                 startTransition(() => {
                   loadData();
-                  if (selectedTicker) loadPrices(selectedTicker);
+                  if (selectedTicker) {
+                    loadPrices(selectedTicker);
+                    loadChartist(selectedTicker);
+                  }
                 });
               }}
               className="text-xs font-mono border border-zinc-200 px-3 py-1.5 rounded hover:bg-zinc-50 flex items-center gap-1.5 transition-colors text-zinc-700 bg-white"
@@ -142,7 +167,7 @@ export default function Dashboard() {
               <RefreshCw className={`w-3.5 h-3.5 ${isPending ? "animate-spin" : ""}`} />
               Sincronizar
             </button>
-            <div className="h-4 w-px bg-zinc-200"></div>
+            <div className="h-4 w-px border-r border-zinc-200"></div>
             <span className="inline-flex items-center gap-1.5 text-[11px] font-mono text-zinc-500">
               <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
               SQLite WAL Active
@@ -152,9 +177,9 @@ export default function Dashboard() {
       </header>
 
       <main className="max-w-7xl mx-auto px-6 py-8 space-y-8 bg-white">
-        {/* Selector de Ticker y Resumen de Estado */}
+        {/* Selector de Ticker de Indices */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-zinc-100 pb-6">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             {assets.map((asset) => {
               const active = asset.ticker === selectedTicker;
               return (
@@ -174,231 +199,200 @@ export default function Dashboard() {
           </div>
 
           <div className="text-xs font-mono text-zinc-500">
-            {currentRun ? (
-              <span>
-                Ventana de prueba: {currentRun.start_date} a {currentRun.end_date}
-              </span>
+            {chartist ? (
+              <span>Índice: {chartist.name} • Fecha: {chartist.date}</span>
             ) : (
-              <span>Sin ejecución registrada</span>
+              <span>Cargando datos...</span>
             )}
           </div>
         </div>
 
-        {/* Tarjetas Cuantitativas Principales */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          {/* 1. Retorno Estrategia */}
-          <div className="border border-zinc-200 rounded-lg p-5 bg-white">
-            <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-500">
-              Retorno Estrategia
+        {/* Panel de las 4 Prioridades Chartistas */}
+        <section className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs uppercase tracking-wider font-semibold text-zinc-700">
+              Diagnóstico de las 4 Prioridades Chartistas
+            </h2>
+            <span className="text-[11px] font-mono text-zinc-400">
+              Marco Temporal: Diario (1D)
             </span>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div
-                className={`text-2xl font-mono font-medium ${
-                  (currentRun?.total_return_pct ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"
-                }`}
-              >
-                {(currentRun?.total_return_pct ?? 0) >= 0 ? "+" : ""}
-                {currentRun?.total_return_pct?.toFixed(2) ?? "0.00"}%
-              </div>
-              {(currentRun?.total_return_pct ?? 0) >= 0 ? (
-                <ArrowUpRight className="w-5 h-5 text-emerald-600" />
-              ) : (
-                <ArrowDownRight className="w-5 h-5 text-rose-600" />
-              )}
-            </div>
-            <p className="text-xs text-zinc-400 mt-2 font-mono">
-              Capital base: ${currentRun?.parameters?.initial_capital?.toLocaleString() || "100,000"}
-            </p>
           </div>
 
-          {/* 2. Buy & Hold Benchmark */}
-          <div className="border border-zinc-200 rounded-lg p-5 bg-white">
-            <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-500">
-              Benchmark Buy & Hold
-            </span>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div className="text-2xl font-mono font-medium text-zinc-900">
-                {(currentRun?.buy_hold_return_pct ?? 0) >= 0 ? "+" : ""}
-                {currentRun?.buy_hold_return_pct?.toFixed(2) ?? "0.00"}%
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            {/* 1. Prioridad 1: Tendencia por Swings */}
+            <div className="border border-zinc-200 rounded-lg p-5 bg-white">
+              <div className="flex items-center justify-between text-zinc-500 mb-2">
+                <span className="text-[11px] uppercase tracking-wider font-semibold">
+                  1. Tendencia Swings
+                </span>
+                <Compass className="w-4 h-4 text-zinc-500" />
               </div>
-              <Activity className="w-5 h-5 text-zinc-400" />
-            </div>
-            <p className="text-xs text-zinc-400 mt-2 font-mono">Retorno del activo subyacente</p>
-          </div>
-
-          {/* 3. Alpha */}
-          <div className="border border-zinc-200 rounded-lg p-5 bg-white">
-            <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-500">
-              Alpha vs Buy & Hold
-            </span>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div
-                className={`text-2xl font-mono font-medium ${
-                  (currentRun?.alpha_pct ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"
-                }`}
-              >
-                {(currentRun?.alpha_pct ?? 0) >= 0 ? "+" : ""}
-                {currentRun?.alpha_pct?.toFixed(2) ?? "0.00"}%
+              <div className="mt-1">
+                <div
+                  className={`text-xl font-mono font-medium ${
+                    chartist?.trend === "BULLISH"
+                      ? "text-emerald-700"
+                      : chartist?.trend === "BEARISH"
+                      ? "text-rose-700"
+                      : "text-zinc-700"
+                  }`}
+                >
+                  {chartist?.trend === "BULLISH"
+                    ? "ALCISTA"
+                    : chartist?.trend === "BEARISH"
+                    ? "BAJISTA"
+                    : "LATERAL"}
+                </div>
+                <div className="text-[11px] text-zinc-400 font-mono mt-1">
+                  {chartist?.swingStructure || "Calculando..."}
+                </div>
               </div>
-              <BarChart2 className="w-5 h-5 text-zinc-400" />
             </div>
-            <p className="text-xs text-zinc-400 mt-2 font-mono">Sobre/Bajo rendimiento neto</p>
-          </div>
 
-          {/* 4. Riesgo (Sharpe & MaxDD) */}
-          <div className="border border-zinc-200 rounded-lg p-5 bg-white">
-            <span className="text-[11px] uppercase tracking-wider font-semibold text-zinc-500">
-              Métricas de Riesgo
-            </span>
-            <div className="mt-2 flex items-baseline justify-between">
-              <div>
+            {/* 2. Prioridad 2: Agresividad del Giro */}
+            <div className="border border-zinc-200 rounded-lg p-5 bg-white">
+              <div className="flex items-center justify-between text-zinc-500 mb-2">
+                <span className="text-[11px] uppercase tracking-wider font-semibold">
+                  2. Agresividad Giro
+                </span>
+                <Zap className="w-4 h-4 text-zinc-500" />
+              </div>
+              <div className="mt-1">
                 <div className="text-xl font-mono font-medium text-zinc-900">
-                  {currentRun?.sharpe_ratio?.toFixed(2) ?? "0.00"}
+                  {chartist?.turnAggression || "Moderada"}
                 </div>
-                <div className="text-[11px] text-zinc-400 font-mono">Sharpe Ratio</div>
+                <div className="text-[11px] text-zinc-400 font-mono mt-1">
+                  Permanencia en vértices de precio
+                </div>
               </div>
-              <div className="text-right">
-                <div className="text-xl font-mono font-medium text-rose-600">
-                  {currentRun?.max_drawdown_pct?.toFixed(2) ?? "0.00"}%
+            </div>
+
+            {/* 3. Prioridad 3: Figuras (Taza / Cuña) */}
+            <div className="border border-zinc-200 rounded-lg p-5 bg-white">
+              <div className="flex items-center justify-between text-zinc-500 mb-2">
+                <span className="text-[11px] uppercase tracking-wider font-semibold">
+                  3. Figuras Activas
+                </span>
+                <Maximize2 className="w-4 h-4 text-zinc-500" />
+              </div>
+              <div className="mt-1">
+                <div className="text-xl font-mono font-medium text-zinc-900">
+                  {chartist?.patterns?.length || 0} Detectada(s)
                 </div>
-                <div className="text-[11px] text-zinc-400 font-mono">Max Drawdown</div>
+                <div className="text-[11px] text-zinc-400 font-mono mt-1">
+                  {chartist?.patterns && chartist.patterns.length > 0
+                    ? chartist.patterns[chartist.patterns.length - 1].name
+                    : "Taza con Asa (Reversión) / Cuñas"}
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Prioridad 4: Climax de Volatilidad (Rango de Vela) */}
+            <div className="border border-zinc-200 rounded-lg p-5 bg-white">
+              <div className="flex items-center justify-between text-zinc-500 mb-2">
+                <span className="text-[11px] uppercase tracking-wider font-semibold">
+                  4. Rango Vela vs Media
+                </span>
+                <Flame className={`w-4 h-4 ${chartist?.isVolatilityClimax ? "text-rose-600" : "text-zinc-500"}`} />
+              </div>
+              <div className="mt-1">
+                <div
+                  className={`text-xl font-mono font-medium ${
+                    chartist?.isVolatilityClimax ? "text-rose-600" : "text-zinc-900"
+                  }`}
+                >
+                  {chartist?.relativeRange ? `${chartist.relativeRange}x Media` : "1.0x"}
+                </div>
+                <div className="text-[11px] font-mono mt-1">
+                  {chartist?.isVolatilityClimax ? (
+                    <span className="text-rose-600 font-semibold">ALERTA: FIN DE TENDENCIA / CLÍMAX</span>
+                  ) : (
+                    <span className="text-zinc-400">Rango Normal de Sesión</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </section>
 
-        {/* Gráfico Minimalista de la Estrategia */}
+        {/* Gráfico Minimalista de Precios */}
         <section className="space-y-3">
           <div className="flex items-center justify-between">
             <h2 className="text-xs uppercase tracking-wider font-semibold text-zinc-600">
-              Evolución y Ejecuciones
+              Serie Temporal Diaria ({selectedTicker})
             </h2>
             <span className="text-xs text-zinc-400 font-mono">
-              SMA({currentRun?.parameters?.sma_short || 20}) / SMA({currentRun?.parameters?.sma_long || 50}) + Filtro Fundamental
+              Fondo Estrictamente Blanco • Datos Oficiales
             </span>
           </div>
           <StrategyChart ticker={selectedTicker} prices={prices} trades={currentTrades} />
         </section>
 
-        {/* Dos Columnas: Log de Trades y Filtros Fundamentales */}
+        {/* Detalle de Figuras Chartistas y Log */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Tabla de Operaciones */}
+          {/* Panel de Figuras Detectadas */}
           <div className="border border-zinc-200 rounded-lg p-5 bg-white">
             <div className="flex items-center justify-between mb-4">
               <h3 className="text-xs uppercase tracking-wider font-semibold text-zinc-700">
-                Log de Trades Registrados ({currentTrades.length})
+                Figuras Chartistas Identificadas
               </h3>
-              <span className="text-xs font-mono text-zinc-400">Total simulados</span>
-            </div>
-
-            {currentTrades.length === 0 ? (
-              <div className="text-xs font-mono text-zinc-400 py-8 text-center">
-                No hay operaciones para este activo.
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-xs font-mono">
-                  <thead>
-                    <tr className="border-b border-zinc-200 text-left text-zinc-400">
-                      <th className="pb-2 font-normal">Tipo</th>
-                      <th className="pb-2 font-normal">Entrada</th>
-                      <th className="pb-2 font-normal">Salida</th>
-                      <th className="pb-2 font-normal text-right">Retorno</th>
-                      <th className="pb-2 font-normal text-right">Motivo</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-zinc-100">
-                    {currentTrades.map((t) => (
-                      <tr key={t.id} className="hover:bg-zinc-50">
-                        <td className="py-2.5">
-                          <span
-                            className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold ${
-                              t.signal_type === "BUY"
-                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                                : "bg-rose-50 text-rose-700 border border-rose-200"
-                            }`}
-                          >
-                            {t.signal_type}
-                          </span>
-                        </td>
-                        <td className="py-2.5 text-zinc-600">
-                          {t.entry_date} (${t.entry_price.toFixed(2)})
-                        </td>
-                        <td className="py-2.5 text-zinc-600">
-                          {t.exit_date ? `${t.exit_date} ($${t.exit_price?.toFixed(2)})` : "Abierta"}
-                        </td>
-                        <td
-                          className={`py-2.5 text-right font-medium ${
-                            (t.return_pct ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"
-                          }`}
-                        >
-                          {t.return_pct !== null && t.return_pct !== undefined
-                            ? `${t.return_pct >= 0 ? "+" : ""}${t.return_pct.toFixed(2)}%`
-                            : "-"}
-                        </td>
-                        <td className="py-2.5 text-right text-zinc-400">
-                          {t.exit_reason || "-"}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-
-          {/* Validaciones Fundamentales */}
-          <div className="border border-zinc-200 rounded-lg p-5 bg-white">
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-1.5">
-                <ShieldCheck className="w-4 h-4 text-zinc-700" />
-                <h3 className="text-xs uppercase tracking-wider font-semibold text-zinc-700">
-                  Filtro Fundamental Look-Back
-                </h3>
-              </div>
-              <span className="text-[11px] font-mono text-zinc-400">
-                EBITDA &gt; 0% &amp; D/E &lt; 3.0
+              <span className="text-xs font-mono text-zinc-400">
+                Tazas (Giro de Tendencia) y Cuñas
               </span>
             </div>
 
-            {currentFundamentals.length === 0 ? (
+            {!chartist?.patterns || chartist.patterns.length === 0 ? (
               <div className="text-xs font-mono text-zinc-400 py-8 text-center">
-                Sin datos fundamentales registrados.
+                No se detectan figuras activas en la ventana reciente.
               </div>
             ) : (
               <div className="space-y-3">
-                {currentFundamentals.map((f, i) => (
-                  <div
-                    key={i}
-                    className="border border-zinc-100 rounded p-3 text-xs font-mono flex items-center justify-between hover:border-zinc-300 transition-colors bg-white"
-                  >
-                    <div>
-                      <div className="font-semibold text-zinc-800">
-                        Período: {f.period_end} ({f.period_type})
-                      </div>
-                      <div className="text-zinc-500 text-[11px] mt-0.5">
-                        EBITDA: ${f.ebitda ? (f.ebitda / 1e9).toFixed(2) + "B" : "N/A"}
-                      </div>
+                {chartist.patterns.map((p, idx) => (
+                  <div key={idx} className="border border-zinc-100 rounded p-3 text-xs font-mono bg-white hover:border-zinc-300 transition-colors">
+                    <div className="flex items-center justify-between font-semibold text-zinc-800">
+                      <span>{p.name}</span>
+                      <span className="text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 text-[10px]">
+                        {p.status}
+                      </span>
                     </div>
-                    <div className="text-right">
-                      <div
-                        className={`font-medium ${
-                          (f.ebitda_growth ?? 0) >= 0 ? "text-emerald-700" : "text-rose-700"
-                        }`}
-                      >
-                        Crecimiento:{" "}
-                        {f.ebitda_growth !== null && f.ebitda_growth !== undefined
-                          ? `${f.ebitda_growth >= 0 ? "+" : ""}${f.ebitda_growth.toFixed(1)}%`
-                          : "N/A"}
-                      </div>
-                      <div className="text-zinc-500 text-[11px] mt-0.5">
-                        Deuda/Patrimonio: {f.debt_to_equity ? f.debt_to_equity.toFixed(2) : "N/A"}
-                      </div>
+                    <div className="text-zinc-500 text-[11px] mt-1.5 flex justify-between">
+                      <span>Inicio: {p.startDate}</span>
+                      <span>Formación: {p.endDate}</span>
                     </div>
+                    {p.resistance && (
+                      <div className="text-zinc-600 text-[11px] mt-1">
+                        Resistencia de Giro: ${p.resistance.toFixed(2)}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
             )}
+          </div>
+
+          {/* Resumen del Enfoque Metodológico */}
+          <div className="border border-zinc-200 rounded-lg p-5 bg-white">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xs uppercase tracking-wider font-semibold text-zinc-700">
+                Reglas del Algoritmo Chartista
+              </h3>
+              <span className="text-xs font-mono text-zinc-400">Jerarquía Estricta</span>
+            </div>
+
+            <div className="space-y-2.5 text-xs text-zinc-600 font-mono">
+              <div className="p-2.5 bg-zinc-50 border border-zinc-100 rounded">
+                <span className="font-semibold text-zinc-800">1. Tendencia por Swings:</span> Determina el sesgo evaluando Higher Highs/Lows vs Lower Highs/Lows.
+              </div>
+              <div className="p-2.5 bg-zinc-50 border border-zinc-100 rounded">
+                <span className="font-semibold text-zinc-800">2. Agresividad de Giro:</span> Monitorea el número de sesiones en máximos antes de girar (giros en V = clímax).
+              </div>
+              <div className="p-2.5 bg-zinc-50 border border-zinc-100 rounded">
+                <span className="font-semibold text-zinc-800">3. Figuras Exclusivas:</span> Taza con Asa (como cambio de tendencia) y Cuñas para puntos de inflexión.
+              </div>
+              <div className="p-2.5 bg-zinc-50 border border-zinc-100 rounded">
+                <span className="font-semibold text-zinc-800">4. Rango de Vela Relativo:</span> Compara el rango diario contra su media; picos extremos activan fin de tendencia.
+              </div>
+            </div>
           </div>
         </div>
       </main>
