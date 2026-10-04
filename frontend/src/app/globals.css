@@ -1,0 +1,15 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #09090b;
+}
+
+/* Regla arquitectonica estricta: Fondo siempre blanco, sin modo oscuro automatico */
+body {
+  background-color: #ffffff !important;
+  color: #09090b;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+}

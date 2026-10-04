@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.py[cod]
+*$py.class
+*.env
+.env*.local
+
+# Next.js build
+.next/
+out/
+build/
+dist/
+
+# SQLite Databases (generadas por scripts de ejecucion)
+*.db-journal
+*.db-wal
+*.db-shm
+
+# IDE & OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*

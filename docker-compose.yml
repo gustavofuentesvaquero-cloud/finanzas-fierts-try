@@ -1,0 +1,48 @@
+services:
+  # Backend: Python Quantitative Backtesting Engine
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: quant-backend
+    restart: unless-stopped
+    volumes:
+      - ./backend/data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  # Frontend: Next.js 16 Minimalist Dashboard
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: quant-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./backend/data:/app/data:ro
+    environment:
+      - DATABASE_PATH=/app/data/backtesting.db
+      - NODE_ENV=production
+    depends_on:
+      - backend
+
+  # Automatizacion: n8n Workflow Automation (Delta Strategy Ingestion)
+  n8n:
+    image: docker.n8n.io/n8nio/n8n:latest
+    container_name: quant-n8n
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - N8N_BASIC_AUTH_ACTIVE=false
+      - EXECUTIONS_DATA_PRUNE=true
+      - EXECUTIONS_DATA_MAX_AGE=168
+      - N8N_DIAGNOSTICS_ENABLED=false
+    volumes:
+      - n8n_data:/home/node/.n8n
+      - ./backend/data:/data/market_data:rw
+
+volumes:
+  n8n_data:
